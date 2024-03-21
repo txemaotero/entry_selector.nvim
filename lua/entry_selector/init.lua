@@ -7,7 +7,9 @@ local actions = require('telescope.actions')
 
 M.config = {
     spaces = {},
-    global_space_path = vim.fn.stdpath('data') .. "/entry_selector/global_space.txt"
+    global_space_path = vim.fn.stdpath('data') .. "/entry_selector/global_space.txt",
+    sort_entries = true,
+    reverse_sort = false,
 }
 
 local function create_file_if_not_exists(path)
@@ -49,24 +51,37 @@ local function remove_line(all_lines, line_to_remove)
     return new_lines, removed
 end
 
-
-function M.select_line(space_name)
-    local path
+local function get_space_path(space_name)
     if space_name then
         if M.config.spaces and M.config.spaces[space_name] then
-            path = M.config.spaces[space_name]
+            return M.config.spaces[space_name]
         else
             error("Space " .. space_name .. " is not defined")
         end
     else
-        path = M.config.global_space_path
+        return M.config.global_space_path
     end
+end
+
+function M.open_space_file(space_name)
+    vim.api.nvim_command('edit ' .. get_space_path(space_name))
+end
+
+function M.select_line(space_name)
+    local path = get_space_path(space_name)
 
     local lines = {}
     for line in io.lines(path) do
         table.insert(lines, line)
     end
-    table.sort(lines)
+
+    if M.config.sort_entries then
+        if M.config.reverse_sort then
+            table.sort(lines, function(a, b) return a > b end)
+        else
+            table.sort(lines)
+        end
+    end
 
     pickers.new({}, {
         prompt_title = "Select a line",
@@ -95,7 +110,7 @@ function M.select_line(space_name)
             map('i', '<CR>', add_or_insert_line)
             map('n', '<CR>', add_or_insert_line)
 
-            map('n', 'd', function()
+            local remove_entry = function()
                 local selection = action_state.get_selected_entry()
                 if not selection then
                     return
@@ -124,7 +139,9 @@ function M.select_line(space_name)
                         }
                     end,
                 }), { reset_prompt = true })
-            end)
+            end
+            map('n', 'd', remove_entry)
+            map('i', '<c-d>', remove_entry)
             return true
         end
     }):find()
